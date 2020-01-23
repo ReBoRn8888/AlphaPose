@@ -22,6 +22,21 @@ import cv2
 
 from pPose_nms import pose_nms, write_json
 
+class AverageMeter(object):
+    """Computes and stores the average and current value"""
+    def __init__(self):
+        self.reset()
+
+    def reset(self):
+        self.avg = 0
+        self.sum = 0
+        self.count = 0
+
+    def update(self, val, n=1):
+        self.sum += val
+        self.count += n
+        self.avg = self.sum / self.count
+
 args = opt
 args.dataset = 'coco'
 if not args.sp:
@@ -61,6 +76,7 @@ if __name__ == "__main__":
         'pt': [],
         'pn': []
     }
+    duration = AverageMeter()
 
     # Data writer
     save_path = os.path.join(args.outputpath, 'AlphaPose_'+ntpath.basename(videofile).split('.')[0]+'.avi')
@@ -80,8 +96,8 @@ if __name__ == "__main__":
 
             ckpt_time, det_time = getTime(start_time)
             runtime_profile['dt'].append(det_time)
-            # Pose Estimation
             
+            # Pose Estimation
             datalen = inps.size(0)
             leftover = 0
             if (datalen) % batchSize:
@@ -95,18 +111,22 @@ if __name__ == "__main__":
             hm = torch.cat(hm)
             ckpt_time, pose_time = getTime(ckpt_time)
             runtime_profile['pt'].append(pose_time)
+            duration.update(getTime(start_time)[1], 1)
 
             hm = hm.cpu().data
             writer.save(boxes, scores, hm, pt1, pt2, orig_img, im_name.split('/')[-1])
-
             ckpt_time, post_time = getTime(ckpt_time)
             runtime_profile['pn'].append(post_time)
 
         if args.profile:
             # TQDM
+            # im_names_desc.set_description(
+            # 'det time: {dt:.3f} | pose time: {pt:.2f} | post processing: {pn:.4f}'.format(
+            #     dt=np.mean(runtime_profile['dt']), pt=np.mean(runtime_profile['pt']), pn=np.mean(runtime_profile['pn']))
+            # )
+            tt = duration.avg
             im_names_desc.set_description(
-            'det time: {dt:.3f} | pose time: {pt:.2f} | post processing: {pn:.4f}'.format(
-                dt=np.mean(runtime_profile['dt']), pt=np.mean(runtime_profile['pt']), pn=np.mean(runtime_profile['pn']))
+                '[ det & pose ] time: {:.3f} ({}fps)'.format(tt, int(1.0 / tt))
             )
 
     print('===========================> Finish Model Running.')

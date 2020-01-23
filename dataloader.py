@@ -398,7 +398,6 @@ class DetectionProcessor:
     def update(self):
         # keep looping the whole dataset
         for i in range(self.datalen):
-            
             with torch.no_grad():
                 (orig_img, im_name, boxes, scores, inps, pt1, pt2) = self.detectionLoader.read()
                 if orig_img is None:
