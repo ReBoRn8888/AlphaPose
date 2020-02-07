@@ -140,15 +140,15 @@ class ImageLoader:
 
     def getitem_yolo(self):
         for i in range(self.num_batches):
-            img = []
-            orig_img = []
-            im_name = []
-            im_dim_list = []
+            img = [] # resized and transposed images
+            orig_img = [] # original images
+            im_name = [] # image names
+            im_dim_list = [] # image dimensions
             for k in range(i*self.batchSize, min((i +  1)*self.batchSize, self.datalen)):
                 inp_dim = int(opt.inp_dim)
                 im_name_k = self.imglist[k].rstrip('\n').rstrip('\r')
                 im_name_k = os.path.join(self.img_dir, im_name_k)
-                img_k, orig_img_k, im_dim_list_k = prep_image(im_name_k, inp_dim)
+                img_k, orig_img_k, im_dim_list_k = prep_image(im_name_k, inp_dim) # read and resize image
             
                 img.append(img_k)
                 orig_img.append(orig_img_k)
@@ -237,7 +237,7 @@ class VideoLoader:
                     print('===========================> This video get '+str(k)+' frames in total.')
                     sys.stdout.flush()
                     return
-                # process and add the frame to the queue
+                # process and add the frame to the queue (resize to [608*608] and transpose)
                 img_k, orig_img_k, im_dim_list_k = prep_frame(frame, inp_dim)
             
                 img.append(img_k)
@@ -321,9 +321,11 @@ class DetectionLoader:
                 # Human Detection
                 img = img.cuda()
                 prediction = self.det_model(img, CUDA=True)
+                # print('prediction : {}'.format(prediction.shape))
                 # NMS process
                 dets = dynamic_write_results(prediction, opt.confidence,
                                     opt.num_classes, nms=True, nms_conf=opt.nms_thesh)
+                # print('dets : {}'.format(dets))
                 if isinstance(dets, int) or dets.shape[0] == 0:
                     for k in range(len(orig_img)):
                         if self.Q.full():
@@ -345,6 +347,8 @@ class DetectionLoader:
                     dets[j, [2, 4]] = torch.clamp(dets[j, [2, 4]], 0.0, im_dim_list[j, 1])
                 boxes = dets[:, 1:5]
                 scores = dets[:, 5:6]
+                # print('boxes : {}'.format(boxes))
+                # print('scores : {}'.format(scores))
 
             for k in range(len(orig_img)):
                 boxes_k = boxes[dets[:,0]==k]
@@ -409,7 +413,10 @@ class DetectionProcessor:
                     self.Q.put((None, orig_img, im_name, boxes, scores, None, None))
                     continue
                 inp = im_to_torch(cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB))
-                inps, pt1, pt2 = crop_from_dets(inp, boxes, inps, pt1, pt2)
+
+                # get 320*256 human box with padding
+                # pt1, pt2 denote the rescaled box
+                inps, pt1, pt2 = crop_from_dets(inp, boxes, inps, pt1, pt2) 
 
                 while self.Q.full():
                     time.sleep(0.2)
@@ -755,6 +762,7 @@ def crop_from_dets(img, boxes, inps, pt1, pt2):
         ht = bottomRight[1] - upLeft[1]
         width = bottomRight[0] - upLeft[0]
 
+        # rescale the box to contain the whole person
         scaleRate = 0.3
 
         upLeft[0] = max(0, upLeft[0] - width * scaleRate / 2)
@@ -775,3 +783,4 @@ def crop_from_dets(img, boxes, inps, pt1, pt2):
         pt2[i] = bottomRight
 
     return inps, pt1, pt2
+

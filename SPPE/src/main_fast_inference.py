@@ -56,7 +56,7 @@ class InferenNet_fast(nn.Module):
     def __init__(self, kernel_size, dataset):
         super(InferenNet_fast, self).__init__()
 
-        model = createModel().cuda()
+        model = createModel().cuda() # output channel = 33
         print('Loading pose model from {}'.format('./models/sppe/duc_se.pth'))
         model.load_state_dict(torch.load('./models/sppe/duc_se.pth'))
         model.eval()
@@ -66,6 +66,8 @@ class InferenNet_fast(nn.Module):
 
     def forward(self, x):
         out = self.pyranet(x)
-        out = out.narrow(1, 0, 17)
+        print(out.shape)
+        # tensor.narrow(dim, start, length) : get data in [dim] from [start] to [start+length-1]
+        out = out.narrow(1, 0, 17) # get 17 keypoint data
 
         return out
